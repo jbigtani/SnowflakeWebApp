@@ -1,0 +1,96 @@
+
+CREATE FILE FORMAT "DEMO_DB"."PUBLIC".COLORS_CSV
+TYPE = 'CSV'
+COMPRESSION = 'AUTO'
+FIELD_DELIMITER = ','
+RECORD_DELIMITER = '\n'
+SKIP_HEADER = 1
+FIELD_OPTIONALLY_ENCLOSED_BY = 'NONE'
+TRIM_SPACE = FALSE
+ERROR_ON_COLUMN_COUNT_MISMATCH = TRUE
+ESCAPE = 'NONE'
+ESCAPE_UNENCLOSED_FIELD = '\134'
+DATE_FORMAT = 'AUTO'
+TIMESTAMP_FORMAT = 'AUTO'
+NULL_IF = ('\\N');
+
+SELECT * FROM COLORS;
+
+SELECT max(COLOR_UID) FROM COLORS;
+
+SELECT COLOR_NAME, COUNT(*)
+FROM COLORS
+GROUP BY COLOR_NAME;
+
+
+ALTER USER JBIGTANI SET DEFAULT_WAREHOUSE ='COMPUTE_WH';
+
+SELECT * FROM "DEMO_DB"."PUBLIC"."SIMULATED_TEMPS";
+
+CREATE STORAGE INTEGRATION GoogleStorage_Snowflake_Integration
+TYPE = EXTERNAL_STAGE
+STORAGE_PROVIDER = GCS
+ENABLED=TRUE
+STORAGE_ALLOWED_LOCATIONS = ('gcs://my_snowflake_handson_lab_bucket_ta47544/');
+
+DESC INTEGRATION GoogleStorage_Snowflake_Integration;
+LIST @GOOGLE_BUCKET_SFHOL;
+
+--DROP INTEGRATION GoogleStorage_Snowflake_Integration;
+
+CREATE TABLE YEAR_DAYS
+(
+"DATE" DATE
+, "DAYOFWEEK" VARCHAR (9)
+);
+
+COPY INTO YEAR_DAYS
+FROM @GOOGLE_BUCKET_SFHOL;
+
+SELECT * FROM  YEAR_DAYS;
+
+SELECT $1 
+FROM @GOOGLE_BUCKET_SFHOL/iot_files/iot_files_sample_output.avro;
+
+CREATE TABLE IOT_AVRO_DATA
+(myColumn VARIANT);
+
+COPY INTO IOT_AVRO_DATA
+FROM @GOOGLE_BUCKET_SFHOL/iot_files/iot_files_sample_output.avro
+file_format = (type=AVRO);
+
+SELECT mycolumn:attributes:temp_reading::string as TemperatureReading
+, mycolumn:timestamp as OriginalTimestamp
+, to_timestamp(LEFT(mycolumn:timestamp,10)) as ReadableTimeStamp
+from IOT_AVRO_DATA;
+
+LIST @GOOGLE_BUCKET_SFHOL/iot_files/output;
+
+COPY INTO IOT_AVRO_DATA
+FROM @GOOGLE_BUCKET_SFHOL/iot_files/output
+file_format = (type=AVRO)
+pattern='.*avro';
+
+Select * FROM IOT_AVRO_DATA;
+TRUNCATE TABLE IOT_AVRO_DATA;
+Select * FROM IOT_AVRO_DATA;
+
+CREATE TASK myTask_UploadAVRO
+WAREHOUSE = COMPUTE_WH
+SCHEDULE='5 minute'
+AS
+COPY INTO IOT_AVRO_DATA
+FROM @GOOGLE_BUCKET_SFHOL/iot_files/output
+file_format = (type=AVRO)
+pattern='.*avro';
+
+SHOW TASKS;
+ALTER TASK myTask_UploadAVRO RESUME;
+ALTER TASK myTask_UploadAVRO SUSPEND;
+
+SELECT *
+FROM TABLE(information_schema.task_history(
+task_name=>'MYTASK_UPLOADAVRO'));
+
+Select COUNT(*) FROM IOT_AVRO_DATA;
+
