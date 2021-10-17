@@ -14,7 +14,8 @@ public class MySnowflakeCnx
         //properties.put("account","ta47544.europe-west4.gcp");
         properties.put("db","DEMO_DB");
         properties.put("schema","PUBLIC");
-        
+
+        // Snowflake JDBC Driver from https://repo1.maven.org/maven2/net/snowflake/snowflake-jdbc/3.13.9/
         String url = "jdbc:snowflake://ta47544.europe-west4.gcp.snowflakecomputing.com";
         
         Connection cnx = DriverManager.getConnection(url,properties);
